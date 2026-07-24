@@ -12,19 +12,11 @@ OVERLAY="$BASEPATH/.overlay"
 # 1. SETUP STRUTTURA
 mkdir -p "$LIVEROOT" "$OVERLAY/upperdir" "$OVERLAY/workdir" "$OVERLAY/lowerdir"
 
-# 1.1. SELF-BIND DI LIVEROOT
-# Senza questo, dentro il chroot "/" non compare come mountpoint in
-# /proc/self/mounts: pacman non riesce a determinarne il filesystem e
-# il suo CheckSpace fallisce con "could not determine root mount point /"
-# / "not enough free disk space", anche a disco vuoto (comportamento noto
-# di pacman/libalpm; arch-chroot applica lo stesso workaround).
-# --make-private e' fondamentale: senza, il bind eredita la propagazione
-# "shared" di /home e ogni mount fatto dopo sotto LIVEROOT (proc, sys,
-# dev, usr, ...) si propaga nel suo peer group invece di restare isolato,
-# rendendo poi l'umount di eternit fallire con EINVAL in fase di pulizia.
-# make-private e' fuori dal guard: e' idempotente, e se un run precedente
-# e' stato interrotto tra il bind e il make-private, mountpoint -q vede
-# gia' un mount e salterebbe per sempre il make-private altrimenti.
+# 1.1. SELF-BIND OF LIVEROOT
+# Needed so pacman sees "/" as a mountpoint inside the chroot (otherwise
+# CheckSpace fails outright). make-private stops the bind from propagating
+# onto /home and breaking eternit's umount later. Run outside the guard
+# since it's idempotent and mountpoint alone can't tell shared from private.
 mountpoint -q "$LIVEROOT" || mount --bind "$LIVEROOT" "$LIVEROOT"
 mount --make-private "$LIVEROOT"
 
