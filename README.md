@@ -38,6 +38,7 @@ For coa commands, see [coa command Reference](./DOCS/manual/commands.md).
 - A Linux system (Debian-based, Arch-based, Fedora-based or Manjaro-based).
 - `gcc` and `make` (for `oa`).
 - `golang` 1.25+ (for `coa`).
+- On Arch-based/Manjaro systems, `base-devel` (provides `fakeroot`, required by `makepkg` for `make package`).
 
 ### Build Everything
 From this root directory, simply run:
