@@ -2,6 +2,27 @@ See AI context: https://penguins-eggs.net/llms.txt
 
 # Changelog
 
+## Release Notes: penguins-eggs v26.7.24 - 2026-07-24
+This release brings full compatibility and end-to-end remastering support for Arch Linux and its major derivatives (**Arch, EndeavourOS, Garuda Linux and CachyOS**), alongside critical bootloader enhancements for Limine, systemd-boot, and GRUB, installer refinements, and robust initramfs module handling.
+
+### 🏹 Broad Arch-Family & Derivative Parity (Arch, EndeavourOS, Garuda, CachyOS)
+* **Distro Detection**: Extended distribution identification in [coa/pkg/utils/os.go](file:///home/artisan/forge/penguins-eggs/coa/pkg/utils/os.go) to explicitly recognize **CachyOS** and **RebornOS** as members of the Arch family via both `ID` and `ID_LIKE` parameters.
+* **Dracut Target Support**: Enabled seamless `dracut` initramfs generation for **EndeavourOS** and **Garuda Linux** within [coa/brain.d/modules/arch-family.bash.tmpl](file:///home/artisan/forge/penguins-eggs/coa/brain.d/modules/arch-family.bash.tmpl), providing explicit target initramfs output paths during installation.
+* **Live Storage Drivers**: Added `isofs` and `sr_mod` kernel modules into the live `mkinitcpio` configuration for Arch-family hosts, guaranteeing reliable ISO boot from optical and USB live media.
+* **Initramfs Cleanups**: Removed obsolete `fsck` hooks from Arch/Manjaro live `mkinitcpio.conf` templates and ensured kernel version detection uses `uname -r` for accurate initramfs correlation.
+
+### 🥾 Bootloader Engine Refinements (GRUB, Limine & systemd-boot)
+* **Bootloader Selection & Ordering**: Optimized default bootloader prioritization to favor systemd-boot and GRUB, while resolving Limine partition UUID resolution and `fstab` parsing issues.
+* **Limine Syntax & Staging**: Fixed Limine configuration syntax (replacing invalid `initramfs_path` with `module_path`, ensuring leading slashes in entry titles), and corrected ESP kernel/initramfs staging.
+* **EFI Trampoline Fix**: Corrected copying of the EFI trampoline `grub.cfg` directly into `efi.img` for UEFI bootable media.
+* **Symlink Dereferencing**: Ensured `krill` dereferences kernel symlinks (`/boot/vmlinuz-*`) when preparing systemd-boot and Limine boot parameters.
+* **Dynamic Distro Labels**: Configured systemd-boot and Limine boot entries to dynamically fetch and display the host's `PRETTY_NAME` from `/etc/os-release`.
+
+### 🛠️ Krill Installer & Remastering Teardown
+* **Simplified Installer Flow**: Streamlined the `krill` TUI installer sequence by removing the manual network configuration screen and defaulting to automatic DHCP configuration.
+* **Teardown Error Handling**: Enforced complete unmount sequence during `destroy` teardown operations and properly propagated teardown failures to prevent stale mount points.
+* **Alpine Btrfs Hook**: Added `btrfs` initramfs feature generation for Alpine Linux targets running on Btrfs file systems.
+
 ## Release Notes: penguins-eggs v26.7.18 - 2026-07-18
 This release transitions the versioning scheme from semantic versioning (`v0.9.x`) to calendar-based versioning (`vYY.M.D`).
 
