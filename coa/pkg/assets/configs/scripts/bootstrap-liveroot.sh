@@ -12,6 +12,14 @@ OVERLAY="$BASEPATH/.overlay"
 # 1. SETUP STRUTTURA
 mkdir -p "$LIVEROOT" "$OVERLAY/upperdir" "$OVERLAY/workdir" "$OVERLAY/lowerdir"
 
+# 1.1. SELF-BIND DI LIVEROOT
+# Senza questo, dentro il chroot "/" non compare come mountpoint in
+# /proc/self/mounts: pacman non riesce a determinarne il filesystem e
+# il suo CheckSpace fallisce con "could not determine root mount point /"
+# / "not enough free disk space", anche a disco vuoto (comportamento noto
+# di pacman/libalpm; arch-chroot applica lo stesso workaround).
+mountpoint -q "$LIVEROOT" || mount --bind "$LIVEROOT" "$LIVEROOT"
+
 # 2. COPIE FISICHE
 cp -a /etc /boot "$LIVEROOT/"
 for link in vmlinuz initrd.img vmlinuz.old initrd.img.old; do
