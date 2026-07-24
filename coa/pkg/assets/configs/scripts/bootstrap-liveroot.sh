@@ -22,10 +22,11 @@ mkdir -p "$LIVEROOT" "$OVERLAY/upperdir" "$OVERLAY/workdir" "$OVERLAY/lowerdir"
 # "shared" di /home e ogni mount fatto dopo sotto LIVEROOT (proc, sys,
 # dev, usr, ...) si propaga nel suo peer group invece di restare isolato,
 # rendendo poi l'umount di eternit fallire con EINVAL in fase di pulizia.
-if ! mountpoint -q "$LIVEROOT"; then
-    mount --bind "$LIVEROOT" "$LIVEROOT"
-    mount --make-private "$LIVEROOT"
-fi
+# make-private e' fuori dal guard: e' idempotente, e se un run precedente
+# e' stato interrotto tra il bind e il make-private, mountpoint -q vede
+# gia' un mount e salterebbe per sempre il make-private altrimenti.
+mountpoint -q "$LIVEROOT" || mount --bind "$LIVEROOT" "$LIVEROOT"
+mount --make-private "$LIVEROOT"
 
 # 2. COPIE FISICHE
 cp -a /etc /boot "$LIVEROOT/"
