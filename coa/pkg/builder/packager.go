@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 )
 
 func packager(ctx sysctx.RuntimeContext, dist string, data RecipeData) {
@@ -33,35 +32,8 @@ func packager(ctx sysctx.RuntimeContext, dist string, data RecipeData) {
 
 	case "arch", "manjaro":
 		pkgFileName = fmt.Sprintf("penguins-eggs-%s-%s-x86_64.pkg.tar.zst", data.BaseVersion, data.Rel)
-		if _, err := exec.LookPath("makepkg"); err == nil {
-			cmd = exec.Command("makepkg", "-s", "-f", "--noconfirm")
-			cmd.Dir = stage
-		} else {
-			utils.LogNormal("[build] makepkg not found on host. Building Arch package directly with tar+zstd...")
-			pkgInfoPath := filepath.Join(stage, ".PKGINFO")
-			pkgInfoContent := fmt.Sprintf("pkgname = penguins-eggs\n"+
-				"pkgver = %s-%s\n"+
-				"pkgdesc = Fast, C/Go remastering engine and live system builder\n"+
-				"url = https://github.com/pieroproietti/penguins-eggs\n"+
-				"builddate = %d\n"+
-				"packager = Piero Proietti <piero.proietti@gmail.com>\n"+
-				"arch = x86_64\n"+
-				"license = GPL3\n"+
-				"depend = bash\n"+
-				"depend = squashfs-tools\n"+
-				"depend = dosfstools\n"+
-				"depend = mtools\n"+
-				"depend = grub\n",
-				data.BaseVersion, data.Rel, time.Now().Unix())
-
-			if err := os.WriteFile(pkgInfoPath, []byte(pkgInfoContent), 0644); err != nil {
-				utils.LogError("Failed to write .PKGINFO: %v", err)
-				return
-			}
-
-			finalPath := filepath.Join(ctx.ProjRoot, pkgFileName)
-			cmd = exec.Command("sh", "-c", fmt.Sprintf("tar --owner=0 --group=0 -cf - -C %s .PKGINFO etc usr | zstd -c > %s", stage, finalPath))
-		}
+		cmd = exec.Command("makepkg", "-s", "-f", "--noconfirm")
+		cmd.Dir = stage
 
 	case "debian":
 		pkgFileName = fmt.Sprintf("penguins-eggs_%s-%s_%s.deb", data.BaseVersion, data.Rel, getDebianArch())
@@ -123,8 +95,8 @@ func packager(ctx sysctx.RuntimeContext, dist string, data RecipeData) {
 				utils.LogError("Error moving package: %v", err)
 				return
 			}
-		} else if _, err := os.Stat(finalDest); err != nil {
-			utils.LogError("Critical error: packager finished without errors, but package not found in stage or project root!")
+		} else {
+			utils.LogError("Critical error: packager finished without errors, but package not found in stage!")
 			return
 		}
 	}
