@@ -149,7 +149,10 @@ INITRD_FILE=$(ls -1 /boot/initramfs-* /boot/initrd-* 2>/dev/null | grep -v rescu
 cp -L /boot/$KERNEL_FILE /boot/efi/
 cp -L /boot/$INITRD_FILE /boot/efi/
 
-ROOT_PART=$(grep " / " /etc/fstab | grep -v "^#" | awk '{print $1}')
+ROOT_PART=$(awk '$2 == "/" && $1 !~ /^#/ {print $1}' /etc/fstab)
+if [ -z "$ROOT_PART" ]; then
+    ROOT_PART=$(df / | awk 'NR==2 {print $1}')
+fi
 ROOT_FSTYPE=$(awk '$2 == "/" {print $3}' /etc/fstab)
 ROOTFLAGS=""
 if [ "$ROOT_FSTYPE" = "btrfs" ]; then
@@ -191,7 +194,10 @@ if [ -d /sys/firmware/efi ]; then
     cp "$KERNEL_PATH" "/boot/efi/$KERNEL_FILE" 2>/dev/null || true
     cp "$INITRD_PATH" "/boot/efi/$INITRD_FILE" 2>/dev/null || true
 
-    ROOT_PART=$(grep " / " /etc/fstab | grep -v "^#" | awk '{print $1}')
+    ROOT_PART=$(awk '$2 == "/" && $1 !~ /^#/ {print $1}' /etc/fstab)
+    if [ -z "$ROOT_PART" ]; then
+        ROOT_PART=$(df / | awk 'NR==2 {print $1}')
+    fi
     ROOT_FSTYPE=$(awk '$2 == "/" {print $3}' /etc/fstab)
     ROOTFLAGS=""
     if [ "$ROOT_FSTYPE" = "btrfs" ]; then
@@ -223,7 +229,10 @@ else
     KERNEL_FILE=$(basename "$KERNEL_PATH")
     INITRD_FILE=$(basename "$INITRD_PATH")
 
-    ROOT_PART=$(grep " / " /etc/fstab | grep -v "^#" | awk '{print $1}')
+    ROOT_PART=$(awk '$2 == "/" && $1 !~ /^#/ {print $1}' /etc/fstab)
+    if [ -z "$ROOT_PART" ]; then
+        ROOT_PART=$(df / | awk 'NR==2 {print $1}')
+    fi
     ROOT_FSTYPE=$(awk '$2 == "/" {print $3}' /etc/fstab)
     ROOTFLAGS=""
     if [ "$ROOT_FSTYPE" = "btrfs" ]; then

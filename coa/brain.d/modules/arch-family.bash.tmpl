@@ -252,10 +252,12 @@ echo "-> Automatic detection and bootloader dispatch..."
 
 if [ -d /sys/firmware/efi ]; then
     echo "-> UEFI environment detected."
-    if command -v limine &> /dev/null; then
-        {{ include "install_distro_limine" . }}
-    elif command -v bootctl &> /dev/null; then
+    if command -v bootctl &> /dev/null; then
         {{ include "install_distro_systemd_boot" . }}
+    elif command -v grub-install &> /dev/null; then
+        {{ include "install_distro_grub" . }}
+    elif command -v limine &> /dev/null; then
+        {{ include "install_distro_limine" . }}
     else
         {{ include "install_distro_grub" . }}
     fi
@@ -345,6 +347,13 @@ grub-mkconfig -o /boot/grub/grub.cfg
 
 {{ define "install_distro_systemd_boot" }}
 echo "-> Installing systemd-boot (bootctl)..."
+
+if ! grep -q "/boot/efi" /proc/mounts; then
+    echo "-> /boot/efi is not mounted, attempting to mount..."
+    mkdir -p /boot/efi
+    mount /boot/efi || true
+fi
+
 bootctl install --esp-path=/boot/efi
 mkdir -p /boot/efi/loader/entries
 
@@ -371,10 +380,15 @@ case "$KERNEL_PATH" in
     /usr/lib/modules/*/vmlinuz)
         KVER=$(basename "$(dirname "$KERNEL_PATH")")
         PKGBASE=$(cat "/usr/lib/modules/$KVER/pkgbase" 2>/dev/null || echo "$KVER")
+        KERNEL_FILE="vmlinuz-$PKGBASE"
         INITRD_PATH="/boot/initramfs-$PKGBASE.img"
         ;;
     /boot/vmlinuz-*)
+        KERNEL_FILE=$(basename "$KERNEL_PATH")
         INITRD_PATH="/boot/initramfs-${KERNEL_PATH#/boot/vmlinuz-}.img"
+        ;;
+    *)
+        KERNEL_FILE=$(basename "$KERNEL_PATH")
         ;;
 esac
 if [ -z "$INITRD_PATH" ] || [ ! -f "$INITRD_PATH" ]; then
@@ -386,7 +400,6 @@ if [ -z "$INITRD_PATH" ]; then
     exit 1
 fi
 
-KERNEL_FILE=$(basename "$KERNEL_PATH")
 INITRD_FILE=$(basename "$INITRD_PATH")
 
 cp -L "$KERNEL_PATH" "/boot/efi/$KERNEL_FILE"
@@ -401,7 +414,10 @@ elif [ -f /boot/intel-ucode.img ]; then
     UCODE_LINE="initrd  /intel-ucode.img"
 fi
 
-ROOT_PART=$(grep " / " /etc/fstab | grep -v "^#" | awk '{print $1}')
+ROOT_PART=$(awk '$2 == "/" && $1 !~ /^#/ {print $1}' /etc/fstab)
+if [ -z "$ROOT_PART" ]; then
+    ROOT_PART=$(df / | awk 'NR==2 {print $1}')
+fi
 ROOT_FSTYPE=$(awk '$2 == "/" {print $3}' /etc/fstab)
 ROOTFLAGS=""
 if [ "$ROOT_FSTYPE" = "btrfs" ]; then
@@ -432,6 +448,12 @@ EOF
 {{ define "install_distro_limine" }}
 echo "-> Installing Limine bootloader (UEFI)..."
 
+if ! grep -q "/boot/efi" /proc/mounts; then
+    echo "-> /boot/efi is not mounted, attempting to mount..."
+    mkdir -p /boot/efi
+    mount /boot/efi || true
+fi
+
 # Ricerca intelligente del kernel, preferendo prima i kernel installati in /boot per garantire corrispondenza con initramfs.
 KERNEL_PATH=$(find /boot -maxdepth 1 -name "vmlinuz-*" -type f | head -n 1)
 if [ -z "$KERNEL_PATH" ] || [ ! -f "$KERNEL_PATH" ]; then
@@ -446,18 +468,19 @@ if [ -z "$KERNEL_PATH" ] || [ ! -f "$KERNEL_PATH" ]; then
     exit 1
 fi
 
-# L'initrd va derivato dal kernel EFFETTIVAMENTE risolto sopra, non da una
-# ricerca indipendente: se uname -r non corrisponde (es. chroot d'installazione
-# con kernel diverso da quello live), le due ricerche potrebbero altrimenti
-# scegliere due kernel diversi (visto su CachyOS con linux-cachyos/-lts).
 case "$KERNEL_PATH" in
     /usr/lib/modules/*/vmlinuz)
         KVER=$(basename "$(dirname "$KERNEL_PATH")")
         PKGBASE=$(cat "/usr/lib/modules/$KVER/pkgbase" 2>/dev/null || echo "$KVER")
+        KERNEL_FILE="vmlinuz-$PKGBASE"
         INITRD_PATH="/boot/initramfs-$PKGBASE.img"
         ;;
     /boot/vmlinuz-*)
+        KERNEL_FILE=$(basename "$KERNEL_PATH")
         INITRD_PATH="/boot/initramfs-${KERNEL_PATH#/boot/vmlinuz-}.img"
+        ;;
+    *)
+        KERNEL_FILE=$(basename "$KERNEL_PATH")
         ;;
 esac
 if [ -z "$INITRD_PATH" ] || [ ! -f "$INITRD_PATH" ]; then
@@ -469,22 +492,39 @@ if [ -z "$INITRD_PATH" ]; then
     exit 1
 fi
 
-KERNEL_FILE=$(basename "$KERNEL_PATH")
 INITRD_FILE=$(basename "$INITRD_PATH")
 
-cp -L "$KERNEL_PATH" "/boot/efi/$KERNEL_FILE"
-cp -L "$INITRD_PATH" "/boot/efi/$INITRD_FILE"
+echo "-> Copying kernel ($KERNEL_PATH) to /boot/efi/$KERNEL_FILE..."
+cp -L "$KERNEL_PATH" "/boot/efi/$KERNEL_FILE" || { echo "[FATAL ERROR] Failed to copy kernel to /boot/efi/$KERNEL_FILE"; exit 1; }
+
+echo "-> Copying initrd ($INITRD_PATH) to /boot/efi/$INITRD_FILE..."
+cp -L "$INITRD_PATH" "/boot/efi/$INITRD_FILE" || { echo "[FATAL ERROR] Failed to copy initrd to /boot/efi/$INITRD_FILE"; exit 1; }
+
+if [ ! -s "/boot/efi/$KERNEL_FILE" ]; then
+    echo "[FATAL ERROR] /boot/efi/$KERNEL_FILE is missing or empty after copy!"
+    exit 1
+fi
+
+ESP_UUID=$(blkid -s UUID -o value /boot/efi 2>/dev/null || awk '$2 == "/boot/efi" {print $1}' /etc/fstab | sed 's/UUID=//' | tr -d '"')
+if [ -n "$ESP_UUID" ]; then
+    LIMINE_BOOT_PREFIX="uuid://$ESP_UUID/"
+else
+    LIMINE_BOOT_PREFIX="boot:///"
+fi
 
 UCODE_LINE=""
 if [ -f /boot/amd-ucode.img ]; then
     cp -L /boot/amd-ucode.img /boot/efi/
-    UCODE_LINE="    module_path: boot:///amd-ucode.img"
+    UCODE_LINE="    module_path: ${LIMINE_BOOT_PREFIX}amd-ucode.img"
 elif [ -f /boot/intel-ucode.img ]; then
     cp -L /boot/intel-ucode.img /boot/efi/
-    UCODE_LINE="    module_path: boot:///intel-ucode.img"
+    UCODE_LINE="    module_path: ${LIMINE_BOOT_PREFIX}intel-ucode.img"
 fi
 
-ROOT_PART=$(grep " / " /etc/fstab | grep -v "^#" | awk '{print $1}')
+ROOT_PART=$(awk '$2 == "/" && $1 !~ /^#/ {print $1}' /etc/fstab)
+if [ -z "$ROOT_PART" ]; then
+    ROOT_PART=$(df / | awk 'NR==2 {print $1}')
+fi
 ROOT_FSTYPE=$(awk '$2 == "/" {print $3}' /etc/fstab)
 ROOTFLAGS=""
 if [ "$ROOT_FSTYPE" = "btrfs" ]; then
@@ -504,9 +544,9 @@ timeout: 5
 
 /: $PRETTY_NAME
     protocol: linux
-    kernel_path: boot:///$KERNEL_FILE
+    kernel_path: ${LIMINE_BOOT_PREFIX}$KERNEL_FILE
 ${UCODE_LINE}
-    module_path: boot:///$INITRD_FILE
+    module_path: ${LIMINE_BOOT_PREFIX}$INITRD_FILE
     cmdline: root=$ROOT_PART rw $ROOTFLAGS
 EOF
 
