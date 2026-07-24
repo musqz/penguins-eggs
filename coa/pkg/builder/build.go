@@ -20,12 +20,15 @@ func LogError(format string, a ...interface{}) {
 	utils.LogNormal("%s", msg)
 }
 
-func HandleBuild(d *distro.Distro) {
+func HandleBuild(d *distro.Distro, targetDistro ...string) {
 
 	// 1. Data preparation
 	ctx := sysctx.Detect()
 	baseVer, relNum := getGitVersion()
 	dist := strings.ToLower(d.DistroLike)
+	if len(targetDistro) > 0 && targetDistro[0] != "" {
+		dist = strings.ToLower(targetDistro[0])
+	}
 	now := time.Now()
 	data := RecipeData{
 		BaseVersion: baseVer,
