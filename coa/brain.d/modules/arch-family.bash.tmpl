@@ -349,10 +349,10 @@ bootctl install --esp-path=/boot/efi
 mkdir -p /boot/efi/loader/entries
 
 # Ricerca intelligente del kernel (supporto per layout classico e systemd-boot),
-# preferendo la versione realmente in esecuzione se più kernel sono installati.
-KERNEL_PATH="/usr/lib/modules/$(uname -r)/vmlinuz"
-if [ ! -f "$KERNEL_PATH" ]; then
-    KERNEL_PATH=$(find /boot -maxdepth 1 -name "vmlinuz-*" -type f | head -n 1)
+# preferendo prima i kernel installati in /boot per garantire corrispondenza con initramfs.
+KERNEL_PATH=$(find /boot -maxdepth 1 -name "vmlinuz-*" -type f | head -n 1)
+if [ -z "$KERNEL_PATH" ] || [ ! -f "$KERNEL_PATH" ]; then
+    KERNEL_PATH="/usr/lib/modules/$(uname -r)/vmlinuz"
 fi
 if [ ! -f "$KERNEL_PATH" ]; then
     KERNEL_PATH=$(find /usr/lib/modules -name "vmlinuz" -type f | head -n 1)
@@ -389,15 +389,15 @@ fi
 KERNEL_FILE=$(basename "$KERNEL_PATH")
 INITRD_FILE=$(basename "$INITRD_PATH")
 
-cp "$KERNEL_PATH" "/boot/efi/$KERNEL_FILE"
-cp "$INITRD_PATH" "/boot/efi/$INITRD_FILE"
+cp -L "$KERNEL_PATH" "/boot/efi/$KERNEL_FILE"
+cp -L "$INITRD_PATH" "/boot/efi/$INITRD_FILE"
 
 UCODE_LINE=""
 if [ -f /boot/amd-ucode.img ]; then
-    cp /boot/amd-ucode.img /boot/efi/
+    cp -L /boot/amd-ucode.img /boot/efi/
     UCODE_LINE="initrd  /amd-ucode.img"
 elif [ -f /boot/intel-ucode.img ]; then
-    cp /boot/intel-ucode.img /boot/efi/
+    cp -L /boot/intel-ucode.img /boot/efi/
     UCODE_LINE="initrd  /intel-ucode.img"
 fi
 
@@ -432,10 +432,10 @@ EOF
 {{ define "install_distro_limine" }}
 echo "-> Installing Limine bootloader (UEFI)..."
 
-# Ricerca intelligente del kernel, preferendo la versione realmente in esecuzione.
-KERNEL_PATH="/usr/lib/modules/$(uname -r)/vmlinuz"
-if [ ! -f "$KERNEL_PATH" ]; then
-    KERNEL_PATH=$(find /boot -maxdepth 1 -name "vmlinuz-*" -type f | head -n 1)
+# Ricerca intelligente del kernel, preferendo prima i kernel installati in /boot per garantire corrispondenza con initramfs.
+KERNEL_PATH=$(find /boot -maxdepth 1 -name "vmlinuz-*" -type f | head -n 1)
+if [ -z "$KERNEL_PATH" ] || [ ! -f "$KERNEL_PATH" ]; then
+    KERNEL_PATH="/usr/lib/modules/$(uname -r)/vmlinuz"
 fi
 if [ ! -f "$KERNEL_PATH" ]; then
     KERNEL_PATH=$(find /usr/lib/modules -name "vmlinuz" -type f | head -n 1)
@@ -472,15 +472,15 @@ fi
 KERNEL_FILE=$(basename "$KERNEL_PATH")
 INITRD_FILE=$(basename "$INITRD_PATH")
 
-cp "$KERNEL_PATH" "/boot/efi/$KERNEL_FILE"
-cp "$INITRD_PATH" "/boot/efi/$INITRD_FILE"
+cp -L "$KERNEL_PATH" "/boot/efi/$KERNEL_FILE"
+cp -L "$INITRD_PATH" "/boot/efi/$INITRD_FILE"
 
 UCODE_LINE=""
 if [ -f /boot/amd-ucode.img ]; then
-    cp /boot/amd-ucode.img /boot/efi/
+    cp -L /boot/amd-ucode.img /boot/efi/
     UCODE_LINE="    module_path: boot:///amd-ucode.img"
 elif [ -f /boot/intel-ucode.img ]; then
-    cp /boot/intel-ucode.img /boot/efi/
+    cp -L /boot/intel-ucode.img /boot/efi/
     UCODE_LINE="    module_path: boot:///intel-ucode.img"
 fi
 
